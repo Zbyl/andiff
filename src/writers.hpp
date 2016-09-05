@@ -44,52 +44,55 @@ typedef ptrdiff_t ssize_t;
 #include <bzlib.h>
 
 class file_writer {
-public:
-    file_writer() : m_fd(nullptr), m_curr_pos(0){};
-    file_writer(const file_writer& other) = delete;
-    file_writer(file_writer&& other) noexcept
-        : m_fd(other.m_fd)
-        , m_curr_pos(other.m_curr_pos)
-    {
-        other.m_fd = nullptr;
-        other.m_curr_pos = -1;
-    }
+ public:
+  file_writer() : m_fd(nullptr), m_curr_pos(0){};
+  file_writer(const file_writer& other) = delete;
+  file_writer(file_writer&& other) noexcept
+    : m_fd(other.m_fd)
+    , m_curr_pos(other.m_curr_pos)
+  {
+    other.m_fd = nullptr;
+    other.m_curr_pos = -1;
+  }
 
     ~file_writer() { close(); }
 
-    void open(const std::string& file_path) {
-        m_fd = fopen(file_path.c_str(), "wb");
-        enforce(m_fd != nullptr, "Cannot open file for write");
+  void open(const std::string& file_path) {
+    m_fd = fopen(file_path.c_str(), "wb");
+    enforce(m_fd != nullptr, "Cannot open file for write");
   }
 
-    template <typename Type>
-    ssize_t write(Type* buf, ssize_t size) {
-        enforce(m_fd, "file_writer not opened, already closed or moved from");
-        ssize_t chunk = fwrite(buf, 1, size, m_fd);
-        enforce(chunk > 0, "Wrote 0 bytes");
-        m_curr_pos += chunk;
-        return chunk;
-    }
+  template <typename Type>
+  ssize_t write(Type* buf, ssize_t size) {
+    enforce(m_fd, "file_writer not opened, already closed or moved from");
+    ssize_t chunk = fwrite(buf, 1, size, m_fd);
+    enforce(chunk > 0, "Wrote 0 bytes");
+    m_curr_pos += chunk;
+    return chunk;
+  }
 
-    void close() {
-        if (m_fd)
-            fclose(m_fd);
-        m_fd = nullptr;
-    }
+  void close() {
+    if (m_fd)
+      fclose(m_fd);
+    m_fd = nullptr;
+  }
 
-private:
-    FILE* m_fd;
-    ssize_t m_curr_pos;
+ private:
+  FILE* m_fd;
+  ssize_t m_curr_pos;
 };
 
 class andiff_writer {
  public:
   andiff_writer() = default;
-  andiff_writer(andiff_writer& a) = default;
+  andiff_writer(const andiff_writer& other) = delete;
+  andiff_writer(andiff_writer&& other) noexcept
+    : m_writer(std::move(other.m_writer))
+  {
+  }
 
   void open(const std::string& file_path) {
-    m_fd = fopen(file_path.c_str(), "wb");
-    enforce(m_fd > 0, "Cannot open file for write");
+    m_writer.open(file_path);
   }
 
   template <typename T, size_t Size>
@@ -97,33 +100,73 @@ class andiff_writer {
     constexpr size_t string_size = Size - 1;  // Remove null character
     static_assert((Size - 1) == 16, "Magic size is different");
     static_assert(sizeof(new_size) == 8, "New file header has different size");
-    enforce(fwrite(magic, string_size, 1, m_fd) == 1 &&
-                fwrite(&new_size, sizeof(new_size), 1, m_fd) == 1,
+    enforce(m_writer.write(magic, string_size) == string_size &&
+            m_writer.write(&new_size, sizeof(new_size)) == sizeof(new_size),
             "Failed to write header");
   }
 
   void open_bz_stream() {
-    bz2 = BZ2_bzWriteOpen(&bz2err, m_fd, 9, 0, 0);
-    enforce(bz2, "Cannot open bz2 stream");
   }
 
   template <typename Type>
   ssize_t write(Type* buf, ssize_t size) {
-    int bz2err;
-    BZ2_bzWrite(&bz2err, bz2, const_cast<Type*>(buf), size);
-    enforce(bz2err == BZ_OK, "Error while writing bz2 data");
+    enforce(m_writer.write(buf, size) == size, "Error while writing diff data");
 
     return size;
   }
 
   void close() {
-    BZ2_bzWriteClose(&bz2err, bz2, 0, NULL, NULL);
-    fclose(m_fd);
+    m_writer.close();
   }
 
  private:
-  FILE* m_fd;
-  BZFILE* bz2;
-  int bz2err;
+   file_writer m_writer;
 };
+
+class andiff_bz2_writer {
+public:
+    andiff_bz2_writer() = default;
+    andiff_bz2_writer(andiff_bz2_writer& a) = default;
+
+    void open(const std::string& file_path) {
+        m_fd = fopen(file_path.c_str(), "wb");
+        enforce(m_fd != 0, "Cannot open file for write");
+    }
+
+    template <typename T, size_t Size>
+    void write_magic(T (&magic)[Size], int64_t new_size) {
+        constexpr size_t string_size = Size - 1;  // Remove null character
+        static_assert(string_size == 16, "Magic size is different");
+        static_assert(sizeof(new_size) == 8, "New file header has different size");
+
+        enforce(fwrite(magic, string_size, 1, m_fd) == 1 &&
+                fwrite(&new_size, sizeof(new_size), 1, m_fd) == 1,
+                "Failed to write header");
+    }
+
+    void open_bz_stream() {
+        bz2 = BZ2_bzWriteOpen(&bz2err, m_fd, 9, 0, 0);
+        enforce(bz2, "Cannot open bz2 stream");
+    }
+
+    template <typename Type>
+    ssize_t write(Type* buf, ssize_t size) {
+        int bz2err;
+        BZ2_bzWrite(&bz2err, bz2, const_cast<Type*>(buf), size);
+        enforce(bz2err == BZ_OK, "Error while writing bz2 data");
+
+        return size;
+    }
+
+    void close() {
+      BZ2_bzWriteClose(&bz2err, bz2, 0, NULL, NULL);
+      fclose(m_fd);
+    }
+
+private:
+    FILE* m_fd;
+    BZFILE* bz2;
+    int bz2err;
+};
+
 #endif  // WRITERS_HPP
