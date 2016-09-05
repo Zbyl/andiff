@@ -101,16 +101,83 @@ class file_reader {
 };
 
 class anpatch_reader {
+public:
+    anpatch_reader() : m_curPos(-1) {}
+
+    template <size_t N>
+    anpatch_reader(const std::string& file_path, const char (&magic)[N])
+        : m_curPos(0)
+    {
+        open(file_path, magic);
+    }
+
+    anpatch_reader(const anpatch_reader& other) = delete;
+    anpatch_reader(anpatch_reader&& other) noexcept
+        : m_reader(std::move(other.m_reader))
+        , m_curPos(0)
+    {
+    }
+
+    template <size_t N>
+    void open(const std::string& file_path, const char (&magic)[N]) {
+        m_reader.open(file_path);
+
+        check_magic(magic);
+    }
+
+    ssize_t size() {
+        return m_reader.size();
+    }
+
+    template <typename Type>
+    ssize_t read(Type* buf, ssize_t size) {
+        ssize_t n = m_reader.read(buf, size);
+        m_curPos += n;
+
+        return n;
+    }
+
+    bool eof() { return m_curPos == m_reader.size(); }
+
+    void close() {
+        m_reader.close();
+    }
+
+private:
+    template <size_t N>
+    inline void check_magic(const char (&magic_string)[N]) {
+        static_assert(N > 0, "N cannot be less than 1");
+        std::vector<char> magic(N - 1);
+        size_t read = m_reader.read(magic.data(), magic.size());
+        enforce(read == magic.size(), "Magic read failed");
+        enforce(std::equal(magic.begin(), magic.end(), magic_string),
+                "Wrong magic");
+
+        int64_t patch_size;
+        read = m_reader.read(&patch_size, sizeof(int64_t));
+        enforce(read == sizeof(int64_t), "read error");
+        enforce(patch_size >= 0, "Corrupt patch");
+
+        m_curPos = magic.size() + sizeof(int64_t);
+    }
+
+    file_reader m_reader;
+    ssize_t m_curPos;   // We need to count read bytes to check if we've reached end of stream. feof() is not good enough - end-of-file indicator may not be set until an operation attempts to read past eof.
+};
+
+class anpatch_bz2_reader {
  public:
-  anpatch_reader() : m_eof(false) {}
+     anpatch_bz2_reader() : m_eof(false) {}
 
   template <size_t N>
-  anpatch_reader(const std::string& file_path, const char (&magic)[N])
+  anpatch_bz2_reader(const std::string& file_path, const char (&magic)[N])
       : m_eof(false) {
     open(file_path, magic);
   }
 
-  anpatch_reader(anpatch_reader&& an_reader) noexcept
+  anpatch_bz2_reader(const anpatch_bz2_reader& an_reader) = delete;
+
+  anpatch_bz2_reader(anpatch_bz2_reader&& an_reader) noexcept
       : m_fd(an_reader.m_fd)
       , m_bz2file(an_reader.m_bz2file)
       , m_eof(an_reader.m_eof)
@@ -132,8 +199,8 @@ class anpatch_reader {
   }
 
   ssize_t size() {
-    ssize_t seek_ret = fseek(m_fd, 0, SEEK_END);
-    enforce(seek_ret != -1, "fseek error");
+    int seek_ret = fseek(m_fd, 0, SEEK_END);
+    enforce(seek_ret == 0, "fseek error");
     ssize_t file_size = ftell(m_fd);
     int seek_ret_again = fseek(m_fd, 0, SEEK_SET);
     enforce(seek_ret_again == 0, "fseek error");
@@ -142,6 +209,7 @@ class anpatch_reader {
 
   template <typename Type>
   ssize_t read(Type* buf, ssize_t size) {
+    enforce(m_fd, "anpatch_bz2_reader not opened, already closed or moved from");
     int bz2err;
     int n = BZ2_bzRead(&bz2err, m_bz2file, buf, int(size));
     if (bz2err == BZ_STREAM_END)
@@ -156,9 +224,12 @@ class anpatch_reader {
   bool eof() { return m_eof; }
 
   void close() {
+    if (!m_fd)
+      return;
     int bz2err;
     BZ2_bzReadClose(&bz2err, m_bz2file);
     fclose(m_fd);
+    m_fd = nullptr;
   }
 
  private:
