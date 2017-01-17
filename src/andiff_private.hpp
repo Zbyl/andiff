@@ -27,7 +27,7 @@
 #ifndef ANDIFF_PRIVATE_HPP
 #define ANDIFF_PRIVATE_HPP
 
-static constexpr char andiff_magic[17] = "ANDIFF090";
+static constexpr char andiff_magic[17] = "ANDIFFR00";
 
 static_assert(sizeof(andiff_magic) == 17, "Different size of Magic Sequence");
 
