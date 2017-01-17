@@ -15,7 +15,7 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -fno-omit-
 option(ENABLE_ADDRESS_SANITIZER "Enable Address Sanitizer" OFF)
 option(ENABLE_THREAD_SANITIZER "Enable Thread Sanitizer" OFF)
 option(GENERATE_DWARF "Generate DWARF debug symbols" OFF)
-option(ENABLE_NATIVE "Add -march=native to compiler for Release build" ON)
+option(ENABLE_NATIVE "Add -march=native to compiler for Release build" OFF)
 
 if(ENABLE_ADDRESS_SANITIZER)
     message(STATUS "Enabled ASAN")
