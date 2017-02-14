@@ -230,19 +230,9 @@ static T search_simple(const std::vector<T> &SA,
 /// \param x Value to convert
 /// \param buf Output buffer
 ///
+/// @note This function assumes little endian machine.
 static void offtout(int64_t x, uint8_t *buf) {
-  int64_t y;
-
-  if (x < 0)
-    y = -x;
-  else
-    y = x;
-
-  *reinterpret_cast<int64_t *>(buf) = y;
-
-  if (x < 0) buf[7] |= 0x80;
-
-  return;
+  *reinterpret_cast<int64_t *>(buf) = x;
 }
 
 ////////// andiff_base implementation //////////

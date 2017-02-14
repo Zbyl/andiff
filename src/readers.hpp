@@ -114,7 +114,7 @@ public:
     anpatch_reader(const anpatch_reader& other) = delete;
     anpatch_reader(anpatch_reader&& other) noexcept
         : m_reader(std::move(other.m_reader))
-        , m_curPos(0)
+        , m_curPos(other.m_curPos)
     {
     }
 
@@ -150,15 +150,9 @@ private:
         std::vector<char> magic(N - 1);
         size_t read = m_reader.read(magic.data(), magic.size());
         enforce(read == magic.size(), "Magic read failed");
-        enforce(std::equal(magic.begin(), magic.end(), magic_string),
-                "Wrong magic");
+        enforce(std::equal(magic.begin(), magic.end(), magic_string), "Wrong magic");
 
-        int64_t patch_size;
-        read = m_reader.read(&patch_size, sizeof(int64_t));
-        enforce(read == sizeof(int64_t), "read error");
-        enforce(patch_size >= 0, "Corrupt patch");
-
-        m_curPos = magic.size() + sizeof(int64_t);
+        m_curPos = magic.size();
     }
 
     file_reader m_reader;
