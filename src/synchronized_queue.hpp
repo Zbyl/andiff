@@ -97,7 +97,7 @@ class synchronized_queue {
   std::queue<T> m_data;          ///< Internal queue
   std::mutex m_mutex;            ///< Internal mutex
   std::condition_variable m_cv;  ///< Internal condition variable
-  bool m_closed;                 ///< True if close() was called.
+  bool m_closed;                 ///< Is queue closed
 };
 
 template <typename T>
@@ -144,7 +144,7 @@ bool synchronized_queue<T>::closed() const {
 
 template <typename T>
 void synchronized_queue<T>::close() {
-  std::unique_lock<std::mutex> lock(m_mutex);
+  std::lock_guard<std::mutex> lock(m_mutex);
   m_closed = true;
   m_cv.notify_all();
 }
