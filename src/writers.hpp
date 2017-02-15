@@ -96,13 +96,10 @@ class andiff_writer {
   }
 
   template <typename T, size_t Size>
-  void write_magic(T (&magic)[Size], int64_t new_size) {
+  void write_magic(T (&magic)[Size]) {
     constexpr size_t string_size = Size - 1;  // Remove null character
     static_assert((Size - 1) == 16, "Magic size is different");
-    static_assert(sizeof(new_size) == 8, "New file header has different size");
-    enforce(m_writer.write(magic, string_size) == string_size &&
-            m_writer.write(&new_size, sizeof(new_size)) == sizeof(new_size),
-            "Failed to write header");
+    enforce(m_writer.write(magic, string_size) == string_size, "Failed to write header");
   }
 
   void open_bz_stream() {

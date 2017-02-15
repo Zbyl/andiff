@@ -34,28 +34,9 @@
 #include "readers.hpp"
 #include "writers.hpp"
 
+/// @note This function assumes little endian machine.
 static int64_t offtin(uint8_t* buf) {
-  int64_t y;
-
-  y = buf[7] & 0x7F;
-  y <<= 8;
-  y += buf[6];
-  y <<= 8;
-  y += buf[5];
-  y <<= 8;
-  y += buf[4];
-  y <<= 8;
-  y += buf[3];
-  y <<= 8;
-  y += buf[2];
-  y <<= 8;
-  y += buf[1];
-  y <<= 8;
-  y += buf[0];
-
-  if (buf[7] & 0x80) y = -y;
-
-  return y;
+  return *reinterpret_cast<int64_t *>(buf);
 }
 
 template <typename block_type>

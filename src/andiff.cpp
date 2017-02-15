@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     aw.open(argv[3]);
 
     // Save magic
-    aw.write_magic(andiff_magic, target_size);
+    aw.write_magic(andiff_magic);
     aw.open_bz_stream();
 
     // Use int32_t for all structures when both files are smaller than 2GB.
